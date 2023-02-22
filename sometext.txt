@@ -1,0 +1,227 @@
+create or replace view ANALYTICS_SANDBOX.EVM_PRODUCTION_GOLD.REGISTRATION_SALES(
+	REGISTRATION_TENANT_MASTER_GUID,
+	REGISTRATION_TENANT_NAME,
+	REGISTRATION_EVENT_ORGANIZATION,
+	REGISTRATION_EVENT_ORG_TYPE,
+	REGISTRATION_EVENT_TITLE,
+	REGISTRATION_EVENT_ID,
+	REGISTRATION_EVENT_DATE,
+	REGISTRATION_EVENT_START_TIME,
+	REGISTRATION_EVENT_END_TIME,
+	REGISTRATION_EVENT_TIME_ZONE,
+	REGISTRATION_PRIMARY_STATUS,
+	REGISTRATION_ALL_DAY_FLAG,
+	REGISTRATION_EVENT_MASTER_CALENDAR,
+	REGISTRATION_SITE_NAME,
+	REGISTRATION_LOCATION_NAMES,
+	REGISTRATION_PURCHASE_AMOUNT,
+	REGISTRATION_PURCHASE_QUANTITY,
+	REGISTRATION_PURCHASE_DATE,
+	REGISTRATION_PURCHASE_TYPE,
+	REGISTRATION_PRODUCT_NAME,
+	REGISTRATION_ORDER_ID,
+	REGISTRATION_PAYMENT_TYPE,
+	REGISTRATION_TRANSACTION_STATUS,
+	REGISTRATION_SOURCE,
+	REGISTRATION_PURCHASE_TRANSACTION_NUMBER,
+	REGISTRATION_LAST_NAME,
+	REGISTRATION_FIRST_NAME,
+	REGISTRATION_ATTENDED,
+	REGISTRATION_EMAIL,
+	REGISTRATION_INFO_ADDRESS_1,
+	REGISTRATION_INFO_ADDRESS_2,
+	REGISTRATION_INFO_CITY,
+	REGISTRATION_INFO_STATE,
+	REGISTRATION_INFO_ZIPCODE,
+	REGISTRATION_REGISTRANT_ID,
+	REGISTRATION_STATUS,
+	REGISTRATION_QUESTION_TEXT,
+	REGISTRATION_ANSWER_TEXT
+) as (
+    with 
+
+purchase_detail as (
+
+    select * 
+      from ANALYTICS_SANDBOX.EVM_PRODUCTION_GOLD.purchase_detail
+
+),
+
+event_master as (
+
+    select * 
+      from ANALYTICS_SANDBOX.EVM_PRODUCTION_GOLD.event_master
+
+),
+
+event_locations as (
+
+    select * 
+      from ANALYTICS_SANDBOX.EVM_PRODUCTION_GOLD.stg_event_locations
+
+),
+
+product_master as (
+
+    select * 
+      from ANALYTICS_SANDBOX.EVM_PRODUCTION_GOLD.product_master
+
+),
+
+purchase_information as (
+
+    select * 
+      from ANALYTICS_SANDBOX.EVM_PRODUCTION_GOLD.purchase_information
+
+),
+
+purchase_master as (
+
+    select * 
+      from ANALYTICS_SANDBOX.EVM_PRODUCTION_GOLD.purchase_master
+
+),
+
+gateway_transaction_master as (
+
+    select * 
+      from ANALYTICS_SANDBOX.EVM_PRODUCTION_GOLD.gateway_transaction_master
+
+),
+
+tenant_master as (
+
+    select * 
+      from ANALYTICS_SANDBOX.EVM_PRODUCTION_GOLD.tenant_master
+
+),
+
+organization_master as (
+
+    select * 
+      from ANALYTICS_SANDBOX.EVM_PRODUCTION_GOLD.organization_master
+
+),
+
+organization_type as (
+
+    select * 
+      from ANALYTICS_SANDBOX.EVM_PRODUCTION_GOLD.organization_type
+
+),
+
+field_master as (
+
+    select * 
+      from ANALYTICS_SANDBOX.EVM_PRODUCTION_GOLD.field_master
+
+),
+
+field_answer as (
+
+    select * 
+      from ANALYTICS_SANDBOX.EVM_PRODUCTION_GOLD.field_answer
+
+),
+
+registration_sales_final as (
+
+    select
+
+    -- Tenant Master 
+           tm.tenant_master_guid as registration_tenant_master_guid
+         , tm.tenant_name as registration_tenant_name
+
+    -- Organization Master
+         , om.name as registration_event_organization
+
+    -- Organization Type 
+         , ot.name as registration_event_org_type
+
+    -- Event Master
+         , em.event_name as registration_event_title
+         , em.schedule_id as registration_event_id 
+         -- recurring 
+         , em.local_start_datepart as registration_event_date 
+         , em.utcStartTime as registration_event_start_time
+         , em.utcEndTime as registration_event_end_time 
+         , em.timezone_abbreviation as registration_event_time_zone
+         , em.primary_status as registration_primary_status
+         , em.all_day_flag as registration_all_day_flag
+         , em.event_master_calendar as registration_event_master_calendar
+    -- Site
+         , sm.site_name as registration_site_name
+         , (select listagg(distinct replace(fm.name_path,'>>',' / '),', ') 
+              from event_facility_link efl 
+              inner join facility_master fm
+              on fm.facility_master_guid =  efl.facility_master_guid
+              and efl.tenant_master_guid = em.tenant_master_guid 
+              and efl.event_linking_guid = em.event_linking_guid 
+              where efl.event_link_type = 0
+           ) as registration_location_names
+         
+    -- Purchase detail
+         , pd.total as registration_purchase_amount
+         , pd.quantity as registration_purchase_quantity
+         , pd.purchase_detail_timestamp as registration_purchase_date 
+         
+
+    -- Product Master 
+         , pm.purchase_product_type as registration_purchase_type
+         , pm.product_name as registration_product_name
+
+    -- Purchase Master 
+         , pum.purchase_master_guid as registration_order_id
+         , pum.payment_type as registration_payment_type
+         , pum.transaction_status as registration_transaction_status
+         , pum.purchaser_added_by as registration_source
+
+    -- Gateway Transaction
+         , gtm.gateway_transaction_id as registration_purchase_transaction_number
+
+    -- Purchase Information
+         , pui.info_last_name as registration_last_name
+         , pui.info_first_name as registration_first_name
+         , pui.attended_value as registration_attended
+         , pui.info_email_address as registration_email 
+         , pui.info_address_1 as registration_info_address_1
+         , pui.info_address_2 as registration_info_address_2
+         , pui.info_city as registration_info_city
+         , pui.info_state as registration_info_state
+         , pui.info_zipcode as registration_info_zipcode
+         -- registered date
+         , pui.purchase_information_guid as registration_registrant_id
+         , pui.info_purchase_information_status as registration_status
+
+         -- questions and answers
+         , fm.field_display_name as registration_question_text
+         , fa.field_answer as registration_answer_text
+
+    from purchase_detail pd 
+    left join event_master em on em.tenant_master_guid = pd.tenant_master_guid and em.event_master_guid=pd.owner_guid 
+	
+    left join organization_master om on om.organization_master_guid = em.organization_guid
+	
+    left join organization_type ot on ot.tenant_master_guid = om.tenant_master_guid and ot.organization_type_guid = om.organization_type_guid
+    
+	left join site_master sm on sm.tenant_master_guid = em.tenant_master_guid and sm.site_master_guid = em.site_master_guid
+    
+	left join product_master pm on pm.tenant_master_guid=pd.tenant_master_guid and pm.product_master_guid=pd.product_master_guid
+    
+	left join purchase_information pui on pui.tenant_master_guid=pd.tenant_master_guid and pui.transaction_detail_guid=pd.transaction_detail_guid
+    
+	left join purchase_master pum on pum.tenant_master_guid=pd.tenant_master_guid and pum.purchase_master_guid=pd.purchase_master_guid
+    
+	left join gateway_transaction_master gtm on gtm.tenant_master_guid=pum.tenant_master_guid and gtm.purchase_master_guid=pum.purchase_master_guid
+    
+	left join tenant_master tm on tm.tenant_master_guid = em.tenant_master_guid
+    
+	left join product_field pf on pf.tenant_master_guid=pm.tenant_master_guid and pf.owner_guid=pm.product_master_guid
+    
+	left join field_master fm on fm.tenant_master_guid=pf.tenant_master_guid and fm.field_master_guid=pf.field_master_guid
+    
+	left join field_answer fa on fa.tenant_master_guid=fm.tenant_master_guid and fa.field_master_guid=fm.field_master_guid and fa.owner_guid=pui.purchase_information_guid
+)
+
+select * from registration_sales_final
+  );
